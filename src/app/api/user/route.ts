@@ -1,5 +1,5 @@
 import type { IUser, UserDocument } from "@/models";
-import { UserModel } from "@/models";
+import { UserModel, TaskModel } from "@/models";
 import { PaginatedResponse } from "@/types/api";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -41,7 +41,52 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       select: "name email role provider emailVerified createdAt updatedAt",
     });
 
-    const items: IUser[] = result.docs.map((doc: UserDocument) => ({
+    const userIds = result.docs.map((doc) => doc._id);
+    let statsByUserId: Record<
+      string,
+      { total: number; pending: number; completed: number }
+    > = {};
+    if (userIds.length > 0) {
+      const taskStats = await TaskModel.aggregate([
+        { $match: { userId: { $in: userIds } } },
+        {
+          $group: {
+            _id: "$userId",
+            total: { $sum: 1 },
+            pending: {
+              $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+            },
+            completed: {
+              $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+            },
+          },
+        },
+      ]).exec();
+      statsByUserId = taskStats.reduce(
+        (
+          acc: Record<
+            string,
+            { total: number; pending: number; completed: number }
+          >,
+          s: any
+        ) => {
+          acc[String(s._id)] = {
+            total: Number(s.total) || 0,
+            pending: Number(s.pending) || 0,
+            completed: Number(s.completed) || 0,
+          };
+          return acc;
+        },
+        {}
+      );
+    }
+
+    interface UserListItem extends IUser {
+      id: string;
+      taskCounts: { total: number; pending: number; completed: number };
+    }
+
+    const items: UserListItem[] = result.docs.map((doc: UserDocument) => ({
       id: String(doc._id),
       name: doc.name,
       email: doc.email,
@@ -50,9 +95,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       emailVerified: doc.emailVerified ?? null,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
+      taskCounts: statsByUserId[String(doc._id)] ?? {
+        total: 0,
+        pending: 0,
+        completed: 0,
+      },
     }));
 
-    const payload: PaginatedResponse<IUser> = {
+    const payload: PaginatedResponse<UserListItem> = {
       items,
       totalItems: result.totalDocs ?? items.length,
       totalPages: result.totalPages ?? 1,

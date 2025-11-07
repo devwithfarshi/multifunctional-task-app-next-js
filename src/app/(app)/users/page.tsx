@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { debounce } from "lodash";
 import {
   Table,
   TableBody,
@@ -56,14 +57,17 @@ type UserDTO = {
   emailVerified?: string | Date | null;
   createdAt?: string | Date;
   updatedAt?: string | Date;
+  taskCounts: {
+    total: number;
+    pending: number;
+    completed: number;
+  };
 };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserDTO[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<UserDTO | null>(null);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const debounceTimerRef = useRef<number | null>(null);
   const [page, setPage] = useState<number>(1);
   const [limit] = useState<number>(10);
   const [pageInfo, setPageInfo] = useState<PaginatedResponse<UserDTO> | null>(
@@ -75,20 +79,6 @@ export default function UsersPage() {
   const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = window.setTimeout(() => {
-      setDebouncedQuery(query);
-      setPage(1);
-    }, 350);
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, [query]);
-
-  useEffect(() => {
-    const controller = new AbortController();
     const run = async () => {
       setLoading(true);
       setErrorMessage(null);
@@ -96,13 +86,12 @@ export default function UsersPage() {
         const params = new URLSearchParams();
         params.set("page", String(page));
         params.set("limit", String(limit));
-        if (debouncedQuery.trim().length > 0) {
-          params.set("q", debouncedQuery.trim());
+        if (query.trim().length > 0) {
+          params.set("q", query.trim());
         }
         const res = await fetch(`/api/user?${params.toString()}`, {
           method: "GET",
           credentials: "include",
-          signal: controller.signal,
           cache: "no-store",
         });
         const json = (await res.json()) as ApiResponse<
@@ -125,9 +114,10 @@ export default function UsersPage() {
         setLoading(false);
       }
     };
-    run();
-    return () => controller.abort();
-  }, [page, limit, debouncedQuery]);
+    const debouncedRun = debounce(run, 350);
+    debouncedRun();
+    return () => debouncedRun.cancel();
+  }, [page, limit, query]);
 
   const columns: ColumnDef<UserDTO>[] = [
     {
@@ -195,29 +185,52 @@ export default function UsersPage() {
       ),
     },
     {
-      accessorKey: "provider",
+      accessorKey: "taskCounts.total",
       header: ({ column }) => (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Provider <ArrowUpDown className="ml-2 h-4 w-4" />
+          Total Tasks <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => (
-        <div className="capitalize">{row.getValue("provider") || "-"}</div>
+        <div className="capitalize">{row.original.taskCounts.total || "-"}</div>
       ),
     },
     {
-      accessorKey: "emailVerified",
-      header: "Email Verified",
-      cell: ({ row }) => {
-        const v = row.getValue("emailVerified") as string | Date | null;
-        return (
-          <div className="capitalize">{v ? "Verified" : "Unverified"}</div>
-        );
-      },
+      accessorKey: "taskCounts.pending",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Pending Tasks <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="capitalize">
+          {row.original.taskCounts.pending || "-"}
+        </div>
+      ),
     },
+    {
+      accessorKey: "taskCounts.completed",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Completed Tasks <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="capitalize">
+          {row.original.taskCounts.completed || "-"}
+        </div>
+      ),
+    },
+
     {
       id: "actions",
       enableHiding: false,
