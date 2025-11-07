@@ -68,7 +68,7 @@ const reminderSchema = new Schema<ReminderDocument, ReminderModel>(
     },
     channel: {
       type: String,
-      enum: ["email", "push", "sms"],
+      enum: ["email"],
       required: true,
     },
     timezone: {
