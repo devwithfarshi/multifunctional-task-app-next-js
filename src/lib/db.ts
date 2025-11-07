@@ -23,6 +23,7 @@ if (!cached) {
 
 export async function dbConnect(): Promise<typeof mongoose> {
   if (cached?.conn) {
+    console.log("✅ Using existing Mongoose connection");
     return cached.conn;
   }
 
@@ -31,7 +32,10 @@ export async function dbConnect(): Promise<typeof mongoose> {
       .connect(MONGO_DB_URI, {
         dbName: process.env.NEXT_DB_NAME || "task_next",
       })
-      .then((m) => m)
+      .then((m) => {
+        console.log("✅ Connected to MongoDB");
+        return m;
+      })
       .catch((err) => {
         throw new Error(`Failed to connect to MongoDB: ${String(err)}`);
       });

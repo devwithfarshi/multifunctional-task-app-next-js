@@ -1,3 +1,4 @@
+"use client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,13 +16,49 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import * as React from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { loginSchema } from "@/schemas/auth.schema";
+import { useForm } from "react-hook-form";
+import type { LoginInput } from "@/schemas/auth.schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+export default function LoginForm() {
+  const router = useRouter();
+  const {
+    register,
+    handleSubmit,
+    formState: { isSubmitting, errors },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
+  });
+  const [error, setError] = React.useState<string | null>(null);
 
-export default function LoginForm({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+  const onSubmit = handleSubmit(async (values: LoginInput): Promise<void> => {
+    setError(null);
+
+    try {
+      const res = await signIn("credentials", {
+        email: values.email,
+        password: values.password,
+        redirect: false,
+      });
+      if (res?.ok) {
+        router.replace("/");
+      } else {
+        setError("Invalid email or password.");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    }
+  });
+
+  const loginWithGoogle = async (): Promise<void> => {
+    await signIn("google", { callbackUrl: "/" });
+  };
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
+    <div className={cn("flex flex-col gap-6")}>
       <Card>
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>
@@ -30,7 +67,7 @@ export default function LoginForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          <form onSubmit={onSubmit}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -39,7 +76,13 @@ export default function LoginForm({
                   type="email"
                   placeholder="m@example.com"
                   required
+                  {...register("email")}
                 />
+                {errors.email?.message && (
+                  <FieldDescription className="text-red-600">
+                    {errors.email.message}
+                  </FieldDescription>
+                )}
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -51,13 +94,34 @@ export default function LoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  {...register("password")}
+                />
+                {errors.password?.message && (
+                  <FieldDescription className="text-red-600">
+                    {errors.password.message}
+                  </FieldDescription>
+                )}
               </Field>
               <Field>
-                <Button type="submit">Login</Button>
-                <Button variant="outline" type="button">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Logging in..." : "Login"}
+                </Button>
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={loginWithGoogle}
+                >
                   Login with Google
                 </Button>
+                {error && (
+                  <FieldDescription className="text-red-600">
+                    {error}
+                  </FieldDescription>
+                )}
                 <FieldDescription className="text-center">
                   Don&apos;t have an account?{" "}
                   <Link href="/signup">Sign up</Link>

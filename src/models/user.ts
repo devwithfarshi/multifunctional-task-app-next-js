@@ -9,12 +9,14 @@ import {
 import { dbConnect } from "@/lib/db";
 
 export type UserRole = "user" | "admin";
+export type AuthProvider = "credentials" | "google";
 
 export interface IUser {
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string | null;
   role: UserRole;
+  provider?: AuthProvider;
   emailVerified?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -24,11 +26,11 @@ export interface UserDocument extends IUser, Document {
   _id: Types.ObjectId;
 }
 
-export type CreateUserInput = Pick<IUser, "name" | "email" | "passwordHash"> &
-  Partial<Pick<IUser, "role" | "emailVerified">>;
+export type CreateUserInput = Pick<IUser, "name" | "email"> &
+  Partial<Pick<IUser, "passwordHash" | "role" | "emailVerified" | "provider">>;
 
 export type UpdateUserInput = Partial<
-  Pick<IUser, "name" | "email" | "role" | "emailVerified">
+  Pick<IUser, "name" | "email" | "role" | "emailVerified" | "provider">
 >;
 
 const emailRegex =
@@ -53,7 +55,8 @@ const userSchema = new Schema<UserDocument, IUserModel>(
     },
     passwordHash: {
       type: String,
-      required: true,
+      required: false,
+      default: null,
       minlength: [60, "Password hash must be a valid hash"],
     },
     role: {
@@ -61,6 +64,14 @@ const userSchema = new Schema<UserDocument, IUserModel>(
       enum: ["user", "admin"],
       default: "user",
       required: true,
+    },
+    provider: {
+      type: String,
+      enum: ["credentials", "google"],
+      default: "credentials",
+      required: false,
+      lowercase: true,
+      trim: true,
     },
     emailVerified: {
       type: Date,
@@ -92,6 +103,7 @@ userSchema.statics.createUser = async function (
   await dbConnect();
   const payload: CreateUserInput = {
     role: "user",
+    provider: input.provider ?? "credentials",
     ...input,
   };
   return this.create(payload);
