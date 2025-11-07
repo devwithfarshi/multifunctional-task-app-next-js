@@ -2,18 +2,13 @@
 
 import {
   ColumnDef,
-  ColumnFiltersState,
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
-  SortingState,
   useReactTable,
-  VisibilityState,
 } from "@tanstack/react-table";
 import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
-import * as React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AlertDialog,
@@ -46,66 +41,112 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export type IUserList = {
+type UserDTO = {
   id: string;
   name: string;
   email: string;
   role: "user" | "admin";
-  status: "active" | "disabled";
+  provider?: string | null;
+  emailVerified?: string | Date | null;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 };
 
-const initialData: IUserList[] = [
-  {
-    id: "u-001",
-    name: "Ken",
-    email: "ken99@example.com",
-    role: "user",
-    status: "active",
-  },
-  {
-    id: "u-002",
-    name: "Abe",
-    email: "abe45@example.com",
-    role: "user",
-    status: "active",
-  },
-  {
-    id: "u-003",
-    name: "Monserrat",
-    email: "monserrat44@example.com",
-    role: "user",
-    status: "disabled",
-  },
-  {
-    id: "u-004",
-    name: "Silas",
-    email: "silas22@example.com",
-    role: "admin",
-    status: "active",
-  },
-  {
-    id: "u-005",
-    name: "Carmella",
-    email: "carmella@example.com",
-    role: "user",
-    status: "active",
-  },
-];
+type PaginatedResponse<T> = {
+  items: T[];
+  totalItems: number;
+  totalPages: number;
+  page: number;
+  limit: number;
+  hasPrevPage: boolean;
+  hasNextPage: boolean;
+  prevPage: number | null;
+  nextPage: number | null;
+};
+
+type ApiSuccess<T> = {
+  success: true;
+  message: string;
+  data: T;
+};
+
+type ApiFailure = {
+  success: false;
+  message: string;
+};
+
+type UsersApiResponse = ApiSuccess<PaginatedResponse<UserDTO>> | ApiFailure;
 
 export default function UsersPage() {
-  const [users, setUsers] = React.useState<IUserList[]>(initialData);
-  const [deleteTarget, setDeleteTarget] = React.useState<IUserList | null>(
+  const [users, setUsers] = useState<UserDTO[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<UserDTO | null>(null);
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const debounceTimerRef = useRef<number | null>(null);
+  const [page, setPage] = useState<number>(1);
+  const [limit] = useState<number>(10);
+  const [pageInfo, setPageInfo] = useState<PaginatedResponse<UserDTO> | null>(
     null
   );
-  const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = React.useState({});
+  const [loading, setLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [roleUpdatingId, setRoleUpdatingId] = useState<string | null>(null);
 
-  const columns: ColumnDef<IUserList>[] = [
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = window.setTimeout(() => {
+      setDebouncedQuery(query);
+      setPage(1);
+    }, 350);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const run = async () => {
+      setLoading(true);
+      setErrorMessage(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("limit", String(limit));
+        if (debouncedQuery.trim().length > 0) {
+          params.set("q", debouncedQuery.trim());
+        }
+        const res = await fetch(`/api/user?${params.toString()}`, {
+          method: "GET",
+          credentials: "include",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const json = (await res.json()) as UsersApiResponse;
+        if (!res.ok || !json.success) {
+          const message = json.success
+            ? json.message
+            : json.message || "Failed to fetch users";
+          throw new Error(message);
+        }
+        setUsers(json.data.items);
+        setPageInfo(json.data);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unexpected error";
+        setErrorMessage(message);
+        setUsers([]);
+        setPageInfo(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+    return () => controller.abort();
+  }, [page, limit, debouncedQuery]);
+
+  const columns: ColumnDef<UserDTO>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -135,8 +176,7 @@ export default function UsersPage() {
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Name
-          <ArrowUpDown />
+          Name <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => (
@@ -150,8 +190,7 @@ export default function UsersPage() {
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Email
-          <ArrowUpDown />
+          Email <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => (
@@ -160,17 +199,41 @@ export default function UsersPage() {
     },
     {
       accessorKey: "role",
-      header: "Role",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Role <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
       cell: ({ row }) => (
         <div className="capitalize">{row.getValue("role")}</div>
       ),
     },
     {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <div className="capitalize">{row.getValue("status")}</div>
+      accessorKey: "provider",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Provider <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
       ),
+      cell: ({ row }) => (
+        <div className="capitalize">{row.getValue("provider") || "-"}</div>
+      ),
+    },
+    {
+      accessorKey: "emailVerified",
+      header: "Email Verified",
+      cell: ({ row }) => {
+        const v = row.getValue("emailVerified") as string | Date | null;
+        return (
+          <div className="capitalize">{v ? "Verified" : "Unverified"}</div>
+        );
+      },
     },
     {
       id: "actions",
@@ -188,14 +251,41 @@ export default function UsersPage() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
-                disabled={user.role === "admin"}
-                onClick={() =>
-                  setUsers((prev) =>
-                    prev.map((u) =>
-                      u.id === user.id ? { ...u, role: "admin" } : u
-                    )
-                  )
-                }
+                disabled={user.role === "admin" || roleUpdatingId === user.id}
+                onClick={async () => {
+                  setInfoMessage(null);
+                  setErrorMessage(null);
+                  setRoleUpdatingId(user.id);
+                  try {
+                    const res = await fetch(`/api/user/${user.id}`, {
+                      method: "PATCH",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ role: "admin" }),
+                    });
+                    const json = (await res.json()) as
+                      | ApiSuccess<UserDTO>
+                      | ApiFailure;
+                    if (!res.ok || !json.success) {
+                      const message = json.success
+                        ? json.message
+                        : json.message || "Failed to update role";
+                      throw new Error(message);
+                    }
+                    setUsers((prev) =>
+                      prev.map((u) =>
+                        u.id === user.id ? { ...u, role: "admin" } : u
+                      )
+                    );
+                    setInfoMessage("User role updated successfully.");
+                  } catch (err) {
+                    const message =
+                      err instanceof Error ? err.message : "Unexpected error";
+                    setErrorMessage(message);
+                  } finally {
+                    setRoleUpdatingId(null);
+                  }
+                }}
               >
                 Make Admin
               </DropdownMenuItem>
@@ -213,20 +303,8 @@ export default function UsersPage() {
   const table = useReactTable({
     data: users,
     columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-    },
   });
 
   return (
@@ -235,13 +313,9 @@ export default function UsersPage() {
         <div className="w-full">
           <div className="flex items-center py-4">
             <Input
-              placeholder="Filter emails..."
-              value={
-                (table.getColumn("email")?.getFilterValue() as string) ?? ""
-              }
-              onChange={(event) =>
-                table.getColumn("email")?.setFilterValue(event.target.value)
-              }
+              placeholder="Search name or email..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
               className="max-w-sm"
             />
             <DropdownMenu>
@@ -271,6 +345,16 @@ export default function UsersPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {errorMessage ? (
+            <div className="text-sm text-destructive px-2 py-1">
+              {errorMessage}
+            </div>
+          ) : null}
+          {infoMessage ? (
+            <div className="text-sm text-muted-foreground px-2 py-1">
+              {infoMessage}
+            </div>
+          ) : null}
           <div className="overflow-hidden rounded-md border">
             <Table>
               <TableHeader>
@@ -292,7 +376,16 @@ export default function UsersPage() {
                 ))}
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows?.length ? (
+                {loading && users.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={table.getVisibleLeafColumns().length}
+                      className="h-24 text-center"
+                    >
+                      Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => (
                     <TableRow
                       key={row.id}
@@ -323,23 +416,26 @@ export default function UsersPage() {
           </div>
           <div className="flex items-center justify-end space-x-2 py-4">
             <div className="text-muted-foreground flex-1 text-sm">
-              {table.getFilteredSelectedRowModel().rows.length} of{" "}
-              {table.getFilteredRowModel().rows.length} row(s) selected.
+              {pageInfo
+                ? `Page ${pageInfo.page} of ${pageInfo.totalPages} • ${pageInfo.totalItems} users total`
+                : ""}
             </div>
             <div className="space-x-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={!(pageInfo?.hasPrevPage ?? false) || loading}
               >
                 Previous
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() =>
+                  setPage((p) => (pageInfo?.hasNextPage ? p + 1 : p))
+                }
+                disabled={!(pageInfo?.hasNextPage ?? false) || loading}
               >
                 Next
               </Button>

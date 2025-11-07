@@ -1,17 +1,19 @@
+import { dbConnect } from "@/lib/db";
 import {
   Schema,
   model,
   models,
   type Document,
-  type Model,
+  type PaginateModel,
   type Types,
 } from "mongoose";
-import { dbConnect } from "@/lib/db";
+import mongoosePaginate from "mongoose-paginate-v2";
 
 export type UserRole = "user" | "admin";
 export type AuthProvider = "credentials" | "google";
 
 export interface IUser {
+  _id?: Types.ObjectId;
   name: string;
   email: string;
   passwordHash?: string | null;
@@ -86,7 +88,7 @@ const userSchema = new Schema<UserDocument, IUserModel>(
 
 userSchema.index({ email: 1 }, { unique: true });
 
-export interface IUserModel extends Model<UserDocument> {
+export interface IUserModel extends PaginateModel<UserDocument> {
   createUser(input: CreateUserInput): Promise<UserDocument>;
   findByEmail(email: string): Promise<UserDocument | null>;
   updateUserById(
@@ -135,8 +137,10 @@ userSchema.statics.deleteUserById = async function (
   return Boolean(res);
 };
 
-const UserModel: IUserModel =
-  (models.User as IUserModel) ||
-  model<UserDocument, IUserModel>("User", userSchema);
+userSchema.plugin(mongoosePaginate as any);
+
+
+const UserModel: IUserModel =(models.User as IUserModel) || model<UserDocument, IUserModel>("User", userSchema);
+
 export default UserModel;
 export { userSchema };
