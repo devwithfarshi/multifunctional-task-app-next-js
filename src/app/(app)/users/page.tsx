@@ -40,6 +40,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  ApiErrorResponse,
+  ApiResponse,
+  ApiSuccessResponse,
+  PaginatedResponse,
+} from "@/types/api";
 
 type UserDTO = {
   id: string;
@@ -51,31 +57,6 @@ type UserDTO = {
   createdAt?: string | Date;
   updatedAt?: string | Date;
 };
-
-type PaginatedResponse<T> = {
-  items: T[];
-  totalItems: number;
-  totalPages: number;
-  page: number;
-  limit: number;
-  hasPrevPage: boolean;
-  hasNextPage: boolean;
-  prevPage: number | null;
-  nextPage: number | null;
-};
-
-type ApiSuccess<T> = {
-  success: true;
-  message: string;
-  data: T;
-};
-
-type ApiFailure = {
-  success: false;
-  message: string;
-};
-
-type UsersApiResponse = ApiSuccess<PaginatedResponse<UserDTO>> | ApiFailure;
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserDTO[]>([]);
@@ -124,8 +105,10 @@ export default function UsersPage() {
           signal: controller.signal,
           cache: "no-store",
         });
-        const json = (await res.json()) as UsersApiResponse;
-        if (!res.ok || !json.success) {
+        const json = (await res.json()) as ApiResponse<
+          PaginatedResponse<UserDTO>
+        >;
+        if (!res.ok || !json.success || !json.data) {
           const message = json.success
             ? json.message
             : json.message || "Failed to fetch users";
@@ -264,8 +247,8 @@ export default function UsersPage() {
                       body: JSON.stringify({ role: "admin" }),
                     });
                     const json = (await res.json()) as
-                      | ApiSuccess<UserDTO>
-                      | ApiFailure;
+                      | ApiSuccessResponse<UserDTO>
+                      | ApiErrorResponse;
                     if (!res.ok || !json.success) {
                       const message = json.success
                         ? json.message

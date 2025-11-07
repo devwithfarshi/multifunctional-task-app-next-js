@@ -1,8 +1,15 @@
-import { Schema, model, models, type Document, type Model, type Types } from "mongoose";
+import {
+  Schema,
+  model,
+  models,
+  type Document,
+  type Model,
+  type Types,
+} from "mongoose";
 import { dbConnect } from "@/lib/db";
 
 export type ReminderStatus = "scheduled" | "sent" | "cancelled";
-export type ReminderChannel = "email" | "push" | "sms";
+export type ReminderChannel = "email";
 
 export interface IReminder {
   taskId: Types.ObjectId;
@@ -20,10 +27,18 @@ export interface ReminderDocument extends IReminder, Document {
   _id: Types.ObjectId;
 }
 
-export type CreateReminderInput = Pick<IReminder, "taskId" | "userId" | "scheduledAt" | "channel" | "timezone"> &
+export type CreateReminderInput = Pick<
+  IReminder,
+  "taskId" | "userId" | "scheduledAt" | "channel" | "timezone"
+> &
   Partial<Pick<IReminder, "status" | "processedAt">>;
 
-export type UpdateReminderInput = Partial<Pick<IReminder, "scheduledAt" | "status" | "channel" | "timezone" | "processedAt">>;
+export type UpdateReminderInput = Partial<
+  Pick<
+    IReminder,
+    "scheduledAt" | "status" | "channel" | "timezone" | "processedAt"
+  >
+>;
 
 const reminderSchema = new Schema<ReminderDocument, ReminderModel>(
   {
@@ -79,7 +94,10 @@ reminderSchema.index({ taskId: 1, scheduledAt: 1 });
 export interface ReminderModel extends Model<ReminderDocument> {
   scheduleReminder(input: CreateReminderInput): Promise<ReminderDocument>;
   getPendingReminders(before: Date): Promise<ReminderDocument[]>;
-  markProcessed(id: string | Types.ObjectId, when?: Date): Promise<ReminderDocument | null>;
+  markProcessed(
+    id: string | Types.ObjectId,
+    when?: Date
+  ): Promise<ReminderDocument | null>;
   cancelReminder(id: string | Types.ObjectId): Promise<ReminderDocument | null>;
   deleteReminder(id: string | Types.ObjectId): Promise<boolean>;
 }
@@ -114,7 +132,11 @@ reminderSchema.statics.markProcessed = async function (
 ): Promise<ReminderDocument | null> {
   await dbConnect();
   const processedAt = when ?? new Date();
-  return this.findByIdAndUpdate(id, { status: "sent", processedAt }, { new: true }).exec();
+  return this.findByIdAndUpdate(
+    id,
+    { status: "sent", processedAt },
+    { new: true }
+  ).exec();
 };
 
 reminderSchema.statics.cancelReminder = async function (
@@ -122,7 +144,11 @@ reminderSchema.statics.cancelReminder = async function (
   id: string | Types.ObjectId
 ): Promise<ReminderDocument | null> {
   await dbConnect();
-  return this.findByIdAndUpdate(id, { status: "cancelled" }, { new: true }).exec();
+  return this.findByIdAndUpdate(
+    id,
+    { status: "cancelled" },
+    { new: true }
+  ).exec();
 };
 
 reminderSchema.statics.deleteReminder = async function (
@@ -134,7 +160,9 @@ reminderSchema.statics.deleteReminder = async function (
   return Boolean(res);
 };
 
-const ReminderModel = (models.Reminder as ReminderModel) || model<ReminderDocument, ReminderModel>("Reminder", reminderSchema);
+const ReminderModel =
+  (models.Reminder as ReminderModel) ||
+  model<ReminderDocument, ReminderModel>("Reminder", reminderSchema);
 
 export default ReminderModel;
 export { reminderSchema };

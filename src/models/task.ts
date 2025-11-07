@@ -5,9 +5,10 @@ import {
   type Document,
   type Model,
   type Types,
+  PaginateModel,
 } from "mongoose";
 import { dbConnect } from "@/lib/db";
-
+import mongoosePaginate from "mongoose-paginate-v2";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high";
 
@@ -122,8 +123,8 @@ taskSchema.statics.createTask = async function (
   await dbConnect();
   const payload: CreateTaskInput = {
     status: "pending",
-    priority: "medium",
     reminderEnabled: false,
+    priority: "medium",
     ...input,
   };
   return this.create(payload);
@@ -167,6 +168,8 @@ taskSchema.statics.toggleReminder = async function (
     { new: true }
   ).exec();
 };
+
+taskSchema.plugin(mongoosePaginate as any)
 
 const TaskModel =
   (models.Task as TaskModel) ||

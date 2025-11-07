@@ -1,18 +1,7 @@
 import type { IUser, UserDocument } from "@/models";
 import { UserModel } from "@/models";
+import { PaginatedResponse } from "@/types/api";
 import { NextRequest, NextResponse } from "next/server";
-
-interface PaginatedResponse<T> {
-  items: T[];
-  totalItems: number;
-  totalPages: number;
-  page: number;
-  limit: number;
-  hasPrevPage: boolean;
-  hasNextPage: boolean;
-  prevPage: number | null;
-  nextPage: number | null;
-}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
