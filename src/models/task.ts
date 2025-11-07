@@ -13,6 +13,7 @@ export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high";
 
 export interface ITask {
+  _id?: Types.ObjectId;
   userId: Types.ObjectId;
   title: string;
   description?: string;
@@ -102,7 +103,7 @@ const taskSchema = new Schema<TaskDocument, TaskModel>(
 
 taskSchema.index({ userId: 1, status: 1 });
 
-export interface TaskModel extends Model<TaskDocument> {
+export interface TaskModel extends PaginateModel<TaskDocument> {
   createTask(input: CreateTaskInput): Promise<TaskDocument>;
   getTasksByUser(userId: string | Types.ObjectId): Promise<TaskDocument[]>;
   updateTaskById(
@@ -169,7 +170,7 @@ taskSchema.statics.toggleReminder = async function (
   ).exec();
 };
 
-taskSchema.plugin(mongoosePaginate as any)
+taskSchema.plugin(mongoosePaginate as any);
 
 const TaskModel =
   (models.Task as TaskModel) ||

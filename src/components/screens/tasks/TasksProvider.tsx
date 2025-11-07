@@ -1,11 +1,19 @@
 "use client";
 
+import { ITask, IUser } from "@/models";
 import * as React from "react";
-import { Task } from "./types";
 
 type TasksContextValue = {
-  tasks: Task[];
-  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  tasks: (ITask & {
+    user: Pick<IUser, "name">;
+  })[];
+  setTasks: React.Dispatch<
+    React.SetStateAction<
+      (ITask & {
+        user: Pick<IUser, "name">;
+      })[]
+    >
+  >;
   loading: boolean;
   error: string | null;
 };
@@ -15,53 +23,62 @@ const TasksContext = React.createContext<TasksContextValue | undefined>(
 );
 
 const useTasksDemo = (): {
-  tasks: Task[];
-  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  tasks: (ITask & {
+    user: Pick<IUser, "name">;
+  })[];
+  setTasks: React.Dispatch<
+    React.SetStateAction<
+      (ITask & {
+        user: Pick<IUser, "name">;
+      })[]
+    >
+  >;
   loading: boolean;
   error: string | null;
 } => {
-  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [tasks, setTasks] = React.useState<
+    (ITask & {
+      user: Pick<IUser, "name">;
+    })[]
+  >([]);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const timer = setTimeout(() => {
+    const ac = new AbortController();
+    (async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const demo: Task[] = [
-          {
-            id: "t-1",
-            title: "Design landing page",
-            description:
-              "Create responsive hero and CTA section following brand guidelines.",
-            assignee: "Alice",
-            completed: false,
-            reminderEnabled: true,
-          },
-          {
-            id: "t-2",
-            title: "Implement auth flow",
-            description: "Integrate OAuth provider and session persistence.",
-            assignee: "Bob",
-            completed: true,
-            reminderEnabled: false,
-          },
-          {
-            id: "t-3",
-            title: "Write API docs",
-            description: "Document tasks CRUD endpoints and usage examples.",
-            assignee: "Carol",
-            completed: false,
-            reminderEnabled: false,
-          },
-        ];
-        setTasks(demo);
-        setLoading(false);
-      } catch {
+        const url =
+          "/api/task?page=1&limit=20&includeUser=1&includeReminders=1";
+        const res = await fetch(url, {
+          method: "GET",
+          signal: ac.signal,
+          headers: { "Content-Type": "application/json" },
+        });
+        const json = await res.json();
+        if (!res.ok || !json?.success) {
+          const message = json?.message || "Failed to load tasks";
+          setError(message);
+          setTasks([]);
+          return;
+        }
+        const items: (ITask & {
+          user: Pick<IUser, "name">;
+        })[] = json.data?.items ?? [];
+        setTasks(items);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
         setError("Failed to load tasks");
+        setTasks([]);
+      } finally {
         setLoading(false);
       }
-    }, 600);
-    return () => clearTimeout(timer);
+    })();
+    return () => ac.abort();
   }, []);
 
   return { tasks, setTasks, loading, error };

@@ -27,28 +27,65 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Task } from "./types";
 import { useTasks } from "./TasksProvider";
 import { AssignedBadge } from "./AssignedBadge";
-import { SettingsPanel } from "./SettingsPanel";
 import { CreateEditDialog } from "./CreateEditDialog";
+import { ITask, IUser } from "@/models";
+import { toast } from "sonner";
 
 type TaskCardProps = {
-  task: Task;
+  task: ITask & {
+    user: Pick<IUser, "name">;
+  };
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
   const { setTasks } = useTasks();
+  const [deleting, setDeleting] = React.useState<boolean>(false);
 
-  const handleToggleComplete = React.useCallback((): void => {
+  const handleToggleComplete = React.useCallback(async (): Promise<void> => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, completed: !t.completed } : t))
+      prev.map((t) =>
+        t._id === task._id
+          ? { ...t, status: t.status === "completed" ? "pending" : "completed" }
+          : t
+      )
     );
-  }, [setTasks, task.id, task.completed]);
+    try {
+      const payload = {
+        status: task.status === "completed" ? "pending" : "completed",
+      };
 
-  const handleDeleteTask = React.useCallback((): void => {
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
-  }, [setTasks, task.id]);
+      await fetch(`/api/task/${String(task._id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update task");
+    } finally {
+    }
+  }, [setTasks, task._id, task.status]);
+
+  const handleDeleteTask = React.useCallback(async (): Promise<void> => {
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/task/${String(task._id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const message = data?.message || "Failed to delete task";
+        throw new Error(message);
+      }
+      setTasks((prev) => prev.filter((t) => t._id !== task._id));
+      toast.success("Task deleted");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to delete task");
+    } finally {
+      setDeleting(false);
+    }
+  }, [setTasks, task._id]);
 
   return (
     <Card className="@container/card">
@@ -61,13 +98,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
             <TooltipTrigger asChild>
               <div>
                 <Switch
-                  checked={task.completed}
+                  checked={task.status === "completed"}
                   onCheckedChange={handleToggleComplete}
                   aria-label="Toggle completion"
                 />
               </div>
             </TooltipTrigger>
-            <TooltipContent>{task.completed ? "Completed" : "Pending"}</TooltipContent>
+            <TooltipContent>
+              {task.status === "completed" ? "Completed" : "Pending"}
+            </TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -81,18 +120,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <div>
-                <SettingsPanel task={task} />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label="Delete task">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete task"
+                  >
                     <Trash2Icon />
                   </Button>
                 </AlertDialogTrigger>
@@ -100,12 +134,19 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete task</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the task "{task.title}".
+                      This action cannot be undone. This will permanently delete
+                      the task "{task.title}".
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel aria-label="Cancel deletion">Cancel</AlertDialogCancel>
-                    <AlertDialogAction aria-label="Confirm deletion" onClick={handleDeleteTask}>
+                    <AlertDialogCancel aria-label="Cancel deletion">
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      aria-label="Confirm deletion"
+                      onClick={handleDeleteTask}
+                      disabled={deleting}
+                    >
                       Delete
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -117,8 +158,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <AssignedBadge assignee={task.assignee} />
-        <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+        <AssignedBadge
+          assignee={task.user.name || task.userId.toString() || "Unassigned"}
+        />
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {task.description}
+        </p>
       </CardContent>
     </Card>
   );

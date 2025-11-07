@@ -8,7 +8,7 @@ import { Types } from "mongoose";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -24,7 +24,8 @@ export async function PATCH(
       );
     }
 
-    const taskId = params.id;
+    const { id } = await params;
+    const taskId = id;
     if (!Types.ObjectId.isValid(taskId)) {
       return NextResponse.json(
         {
@@ -179,7 +180,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -195,7 +196,8 @@ export async function DELETE(
       );
     }
 
-    const taskId = params.id;
+    const { id } = await params;
+    const taskId = id;
     if (!Types.ObjectId.isValid(taskId)) {
       return NextResponse.json(
         {

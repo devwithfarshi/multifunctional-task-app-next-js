@@ -58,7 +58,7 @@ const TasksContent: React.FC = () => {
       }
     >
       {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} />
+        <TaskCard key={task._id?.toString() || ""} task={task} />
       ))}
     </div>
   );
@@ -69,18 +69,20 @@ const TasksContent: React.FC = () => {
         <TasksHeader view={view} onChangeView={setView} />
 
         <div className="mt-4">
-          {loading
-            ? renderLoading()
-            : error
-            ? (
-                <div className="flex items-center gap-2 text-destructive">
-                  <span role="img" aria-label="Error">⚠️</span>
-                  <span>{error}</span>
-                </div>
-              )
-            : tasks.length === 0
-            ? renderEmpty()
-            : renderList()}
+          {loading ? (
+            renderLoading()
+          ) : error ? (
+            <div className="flex items-center gap-2 text-destructive">
+              <span role="img" aria-label="Error">
+                ⚠️
+              </span>
+              <span>{error}</span>
+            </div>
+          ) : tasks.length === 0 ? (
+            renderEmpty()
+          ) : (
+            renderList()
+          )}
         </div>
       </div>
     </div>

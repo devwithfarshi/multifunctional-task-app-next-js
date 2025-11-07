@@ -1,21 +1,16 @@
 "use client";
 
-export type ViewMode = "grid" | "list";
+import { TaskPriority } from "@/models";
 
-export type Task = {
-  id: string;
-  title: string;
-  description: string;
-  assignee: string;
-  completed: boolean;
-  reminderEnabled: boolean;
-};
+export type ViewMode = "grid" | "list";
 
 export type TaskFormValues = {
   title: string;
   description: string;
   assignee: string;
   reminderEnabled: boolean;
+  priority: TaskPriority;
+  dueDate: string | null;
 };
 
 export const DEMO_USERS = ["Alice", "Bob", "Carol", "Dave"] as const;
@@ -23,6 +18,8 @@ export const DEMO_USERS = ["Alice", "Bob", "Carol", "Dave"] as const;
 export const createEmptyTask = (): TaskFormValues => ({
   title: "",
   description: "",
-  assignee: DEMO_USERS[0],
+  assignee: "",
   reminderEnabled: false,
+  priority: "medium",
+  dueDate: null,
 });
