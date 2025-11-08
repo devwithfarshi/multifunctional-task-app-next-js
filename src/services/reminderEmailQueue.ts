@@ -7,12 +7,9 @@ import type { ReminderDocument } from "../models/reminder";
 import logger from "../lib/logger";
 
 const REMINDER_QUEUE_NAME = "reminder-email-queue";
-const SCAN_INTERVAL_MS = Number(
-  process.env.REMINDER_SCAN_INTERVAL_MS || 120_000
-);
-const BATCH_SIZE = Number(process.env.REMINDER_EMAIL_BATCH_SIZE || 50);
-const FROM_EMAIL =
-  process.env.EMAIL_FROM || process.env.EMAIL_USER || "no-reply@example.com";
+const SCAN_INTERVAL_MS = 120_000;
+const BATCH_SIZE = 50;
+const FROM_EMAIL = process.env.EMAIL_USER;
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -61,8 +58,6 @@ async function sendReminderEmail(reminder: ReminderDocument): Promise<boolean> {
           }).format(new Date(task.dueDate))}`
         : undefined,
       `Scheduled at: ${scheduledLocale} (${reminder.timezone})`,
-      "",
-      "If you believe you received this in error, please ignore this email.",
     ]
       .filter(Boolean)
       .join("\n");
